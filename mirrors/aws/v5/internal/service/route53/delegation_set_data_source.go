@@ -1,0 +1,60 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
+package route53
+
+import (
+	"context"
+
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/blampe/patches/mirrors/aws/v5/internal/conns"
+	"github.com/blampe/patches/mirrors/aws/v5/internal/errs/sdkdiag"
+	"github.com/blampe/patches/mirrors/aws/v5/names"
+)
+
+// @SDKDataSource("aws_route53_delegation_set", name="Reusable Delegation Set")
+func dataSourceDelegationSet() *schema.Resource {
+	return &schema.Resource{
+		ReadWithoutTimeout: dataSourceDelegationSetRead,
+
+		Schema: map[string]*schema.Schema{
+			names.AttrARN: {
+				Type:     schema.TypeString,
+				Computed: true,
+			},
+			"caller_reference": {
+				Type:     schema.TypeString,
+				Computed: true,
+			},
+			names.AttrID: {
+				Type:     schema.TypeString,
+				Required: true,
+			},
+			"name_servers": {
+				Type:     schema.TypeList,
+				Computed: true,
+				Elem:     &schema.Schema{Type: schema.TypeString},
+			},
+		},
+	}
+}
+
+func dataSourceDelegationSetRead(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
+	var diags diag.Diagnostics
+	conn := meta.(*conns.AWSClient).Route53Client(ctx)
+
+	id := d.Get(names.AttrID).(string)
+	set, err := findDelegationSetByID(ctx, conn, id)
+
+	if err != nil {
+		return sdkdiag.AppendErrorf(diags, "reading Route53 Reusable Delegation Set (%s): %s", id, err)
+	}
+
+	d.SetId(id)
+	d.Set(names.AttrARN, delegationSetARN(ctx, meta.(*conns.AWSClient), d.Id()))
+	d.Set("caller_reference", set.CallerReference)
+	d.Set("name_servers", set.NameServers)
+
+	return diags
+}

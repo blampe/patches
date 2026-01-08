@@ -1,0 +1,131 @@
+// Copyright IBM Corp. 2014, 2026
+// SPDX-License-Identifier: MPL-2.0
+
+package redshift_test
+
+import (
+	"context"
+	"fmt"
+	"testing"
+
+	"github.com/YakDriver/regexache"
+	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
+	"github.com/blampe/patches/mirrors/aws/v6/internal/acctest"
+	"github.com/blampe/patches/mirrors/aws/v6/internal/conns"
+	"github.com/blampe/patches/mirrors/aws/v6/internal/retry"
+	tfredshift "github.com/blampe/patches/mirrors/aws/v6/internal/service/redshift"
+	"github.com/blampe/patches/mirrors/aws/v6/names"
+)
+
+func TestAccRedshiftHSMConfiguration_basic(t *testing.T) {
+	ctx := acctest.Context(t)
+	resourceName := "aws_redshift_hsm_configuration.test"
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(ctx, t) },
+		ErrorCheck:               acctest.ErrorCheck(t, names.RedshiftServiceID),
+		ProtoV5ProviderFactories: acctest.ProtoV5ProviderFactories,
+		CheckDestroy:             testAccCheckHSMConfigurationDestroy(ctx),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccHSMConfigurationConfig_basic(rName),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckHSMConfigurationExists(ctx, resourceName),
+					acctest.MatchResourceAttrRegionalARN(ctx, resourceName, names.AttrARN, "redshift", regexache.MustCompile(`hsmconfiguration:.+`)),
+					resource.TestCheckResourceAttr(resourceName, "hsm_configuration_identifier", rName),
+					resource.TestCheckResourceAttr(resourceName, acctest.CtTagsPercent, "0"),
+				),
+			},
+			{
+				ResourceName:            resourceName,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"hsm_partition_password", "hsm_server_public_certificate"},
+			},
+		},
+	})
+}
+
+func TestAccRedshiftHSMConfiguration_disappears(t *testing.T) {
+	ctx := acctest.Context(t)
+	resourceName := "aws_redshift_hsm_configuration.test"
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(ctx, t) },
+		ErrorCheck:               acctest.ErrorCheck(t, names.RedshiftServiceID),
+		ProtoV5ProviderFactories: acctest.ProtoV5ProviderFactories,
+		CheckDestroy:             testAccCheckHSMConfigurationDestroy(ctx),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccHSMConfigurationConfig_basic(rName),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckHSMConfigurationExists(ctx, resourceName),
+					acctest.CheckSDKResourceDisappears(ctx, t, tfredshift.ResourceHSMConfiguration(), resourceName),
+				),
+				ExpectNonEmptyPlan: true,
+			},
+		},
+	})
+}
+
+func testAccCheckHSMConfigurationDestroy(ctx context.Context) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		conn := acctest.Provider.Meta().(*conns.AWSClient).RedshiftClient(ctx)
+
+		for _, rs := range s.RootModule().Resources {
+			if rs.Type != "aws_redshift_hsm_configuration" {
+				continue
+			}
+
+			_, err := tfredshift.FindHSMConfigurationByID(ctx, conn, rs.Primary.ID)
+
+			if retry.NotFound(err) {
+				continue
+			}
+
+			if err != nil {
+				return err
+			}
+
+			return fmt.Errorf("Redshift Hsm Configuration %s still exists", rs.Primary.ID)
+		}
+
+		return nil
+	}
+}
+
+func testAccCheckHSMConfigurationExists(ctx context.Context, name string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[name]
+		if !ok {
+			return fmt.Errorf("not found: %s", name)
+		}
+
+		if rs.Primary.ID == "" {
+			return fmt.Errorf("Redshift Hsm Configuration is not set")
+		}
+
+		conn := acctest.Provider.Meta().(*conns.AWSClient).RedshiftClient(ctx)
+
+		_, err := tfredshift.FindHSMConfigurationByID(ctx, conn, rs.Primary.ID)
+
+		return err
+	}
+}
+
+func testAccHSMConfigurationConfig_basic(rName string) string {
+	return fmt.Sprintf(`
+resource "aws_redshift_hsm_configuration" "test" {
+  description                   = %[1]q
+  hsm_configuration_identifier  = %[1]q
+  hsm_ip_address                = "10.0.0.1"
+  hsm_partition_name            = "aws"
+  hsm_partition_password        = %[1]q
+  hsm_server_public_certificate = %[1]q
+}
+`, rName)
+}

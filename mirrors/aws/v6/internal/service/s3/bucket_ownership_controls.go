@@ -1,0 +1,265 @@
+// Copyright IBM Corp. 2014, 2026
+// SPDX-License-Identifier: MPL-2.0
+
+package s3
+
+import (
+	"context"
+	"log"
+	"time"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/hashicorp/aws-sdk-go-base/v2/tfawserr"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	sdkretry "github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
+	"github.com/blampe/patches/mirrors/aws/v6/internal/conns"
+	"github.com/blampe/patches/mirrors/aws/v6/internal/enum"
+	"github.com/blampe/patches/mirrors/aws/v6/internal/errs/sdkdiag"
+	"github.com/blampe/patches/mirrors/aws/v6/internal/retry"
+	"github.com/blampe/patches/mirrors/aws/v6/internal/tfresource"
+	"github.com/blampe/patches/mirrors/aws/v6/names"
+)
+
+// @SDKResource("aws_s3_bucket_ownership_controls", name="Bucket Ownership Controls")
+// @IdentityAttribute("bucket")
+// @Testing(preIdentityVersion="v6.9.0")
+func resourceBucketOwnershipControls() *schema.Resource {
+	return &schema.Resource{
+		CreateWithoutTimeout: resourceBucketOwnershipControlsCreate,
+		ReadWithoutTimeout:   resourceBucketOwnershipControlsRead,
+		UpdateWithoutTimeout: resourceBucketOwnershipControlsUpdate,
+		DeleteWithoutTimeout: resourceBucketOwnershipControlsDelete,
+
+		Schema: map[string]*schema.Schema{
+			names.AttrBucket: {
+				Type:         schema.TypeString,
+				Required:     true,
+				ForceNew:     true,
+				ValidateFunc: validation.NoZeroValues,
+			},
+			names.AttrRule: {
+				Type:     schema.TypeList,
+				Required: true,
+				MinItems: 1,
+				MaxItems: 1,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"object_ownership": {
+							Type:             schema.TypeString,
+							Required:         true,
+							ValidateDiagFunc: enum.Validate[types.ObjectOwnership](),
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func resourceBucketOwnershipControlsCreate(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
+	var diags diag.Diagnostics
+	conn := meta.(*conns.AWSClient).S3Client(ctx)
+
+	bucket := d.Get(names.AttrBucket).(string)
+	if isDirectoryBucket(bucket) {
+		conn = meta.(*conns.AWSClient).S3ExpressClient(ctx)
+	}
+	input := &s3.PutBucketOwnershipControlsInput{
+		Bucket: aws.String(bucket),
+		OwnershipControls: &types.OwnershipControls{
+			Rules: expandOwnershipControlsRules(d.Get(names.AttrRule).([]any)),
+		},
+	}
+
+	_, err := conn.PutBucketOwnershipControls(ctx, input)
+
+	if tfawserr.ErrMessageContains(err, errCodeInvalidArgument, "OwnershipControls is not valid, expected CreateBucketConfiguration") {
+		err = errDirectoryBucket(err)
+	}
+
+	if err != nil {
+		return sdkdiag.AppendErrorf(diags, "creating S3 Bucket (%s) Ownership Controls: %s", bucket, err)
+	}
+
+	d.SetId(bucket)
+
+	_, err = tfresource.RetryWhenNotFound(ctx, bucketPropagationTimeout, func(ctx context.Context) (any, error) {
+		return findOwnershipControls(ctx, conn, bucket)
+	})
+
+	if err != nil {
+		return sdkdiag.AppendErrorf(diags, "waiting for S3 Bucket Ownership Controls (%s) create: %s", d.Id(), err)
+	}
+
+	return append(diags, resourceBucketOwnershipControlsRead(ctx, d, meta)...)
+}
+
+func resourceBucketOwnershipControlsRead(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
+	var diags diag.Diagnostics
+	conn := meta.(*conns.AWSClient).S3Client(ctx)
+
+	bucket := d.Id()
+	if isDirectoryBucket(bucket) {
+		conn = meta.(*conns.AWSClient).S3ExpressClient(ctx)
+	}
+
+	oc, err := findOwnershipControls(ctx, conn, bucket)
+
+	if !d.IsNewResource() && retry.NotFound(err) {
+		log.Printf("[WARN] S3 Bucket Ownership Controls (%s) not found, removing from state", d.Id())
+		d.SetId("")
+		return diags
+	}
+
+	if err != nil {
+		return sdkdiag.AppendErrorf(diags, "reading S3 Bucket Ownership Controls (%s): %s", d.Id(), err)
+	}
+
+	d.Set(names.AttrBucket, bucket)
+	if err := d.Set(names.AttrRule, flattenOwnershipControlsRules(oc.Rules)); err != nil {
+		return sdkdiag.AppendErrorf(diags, "setting rule: %s", err)
+	}
+
+	return diags
+}
+
+func resourceBucketOwnershipControlsUpdate(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
+	var diags diag.Diagnostics
+	conn := meta.(*conns.AWSClient).S3Client(ctx)
+
+	bucket := d.Id()
+	if isDirectoryBucket(bucket) {
+		conn = meta.(*conns.AWSClient).S3ExpressClient(ctx)
+	}
+
+	input := &s3.PutBucketOwnershipControlsInput{
+		Bucket: aws.String(bucket),
+		OwnershipControls: &types.OwnershipControls{
+			Rules: expandOwnershipControlsRules(d.Get(names.AttrRule).([]any)),
+		},
+	}
+
+	_, err := conn.PutBucketOwnershipControls(ctx, input)
+
+	if err != nil {
+		return sdkdiag.AppendErrorf(diags, "updating S3 Bucket Ownership Controls (%s): %s", d.Id(), err)
+	}
+
+	return append(diags, resourceBucketOwnershipControlsRead(ctx, d, meta)...)
+}
+
+func resourceBucketOwnershipControlsDelete(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
+	var diags diag.Diagnostics
+	conn := meta.(*conns.AWSClient).S3Client(ctx)
+
+	bucket := d.Id()
+	if isDirectoryBucket(bucket) {
+		conn = meta.(*conns.AWSClient).S3ExpressClient(ctx)
+	}
+
+	log.Printf("[DEBUG] Deleting S3 Bucket Ownership Controls: %s", d.Id())
+	_, err := tfresource.RetryWhenAWSErrCodeEquals(ctx, 5*time.Minute, func(ctx context.Context) (any, error) {
+		return conn.DeleteBucketOwnershipControls(ctx, &s3.DeleteBucketOwnershipControlsInput{
+			Bucket: aws.String(bucket),
+		})
+	}, errCodeOperationAborted)
+
+	if tfawserr.ErrCodeEquals(err, errCodeNoSuchBucket, errCodeOwnershipControlsNotFoundError) {
+		return diags
+	}
+
+	if err != nil {
+		return sdkdiag.AppendErrorf(diags, "deleting S3 Bucket Ownership Controls (%s): %s", d.Id(), err)
+	}
+
+	_, err = tfresource.RetryUntilNotFound(ctx, bucketPropagationTimeout, func(ctx context.Context) (any, error) {
+		return findOwnershipControls(ctx, conn, bucket)
+	})
+
+	if err != nil {
+		return sdkdiag.AppendErrorf(diags, "waiting for S3 Bucket Ownership Controls (%s) delete: %s", d.Id(), err)
+	}
+
+	return diags
+}
+
+func findOwnershipControls(ctx context.Context, conn *s3.Client, bucket string) (*types.OwnershipControls, error) {
+	input := &s3.GetBucketOwnershipControlsInput{
+		Bucket: aws.String(bucket),
+	}
+
+	output, err := conn.GetBucketOwnershipControls(ctx, input)
+
+	if tfawserr.ErrCodeEquals(err, errCodeNoSuchBucket, errCodeOwnershipControlsNotFoundError) {
+		return nil, &sdkretry.NotFoundError{
+			LastError:   err,
+			LastRequest: input,
+		}
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	if output == nil || output.OwnershipControls == nil {
+		return nil, tfresource.NewEmptyResultError(input)
+	}
+
+	return output.OwnershipControls, nil
+}
+
+func expandOwnershipControlsRules(tfList []any) []types.OwnershipControlsRule {
+	if len(tfList) == 0 || tfList[0] == nil {
+		return nil
+	}
+
+	var apiObjects []types.OwnershipControlsRule
+
+	for _, tfMapRaw := range tfList {
+		tfMap, ok := tfMapRaw.(map[string]any)
+
+		if !ok {
+			continue
+		}
+
+		apiObjects = append(apiObjects, expandOwnershipControlsRule(tfMap))
+	}
+
+	return apiObjects
+}
+
+func expandOwnershipControlsRule(tfMap map[string]any) types.OwnershipControlsRule {
+	apiObject := types.OwnershipControlsRule{}
+
+	if v, ok := tfMap["object_ownership"].(string); ok && v != "" {
+		apiObject.ObjectOwnership = types.ObjectOwnership(v)
+	}
+
+	return apiObject
+}
+
+func flattenOwnershipControlsRules(apiObjects []types.OwnershipControlsRule) []any {
+	if len(apiObjects) == 0 {
+		return nil
+	}
+
+	var tfList []any
+
+	for _, apiObject := range apiObjects {
+		tfList = append(tfList, flattenOwnershipControlsRule(apiObject))
+	}
+
+	return tfList
+}
+
+func flattenOwnershipControlsRule(apiObject types.OwnershipControlsRule) map[string]any {
+	tfMap := map[string]any{
+		"object_ownership": apiObject.ObjectOwnership,
+	}
+
+	return tfMap
+}

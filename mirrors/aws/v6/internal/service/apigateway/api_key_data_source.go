@@ -1,0 +1,94 @@
+// Copyright IBM Corp. 2014, 2026
+// SPDX-License-Identifier: MPL-2.0
+
+package apigateway
+
+import (
+	"context"
+	"time"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/blampe/patches/mirrors/aws/v6/internal/conns"
+	"github.com/blampe/patches/mirrors/aws/v6/internal/errs/sdkdiag"
+	tftags "github.com/blampe/patches/mirrors/aws/v6/internal/tags"
+	"github.com/blampe/patches/mirrors/aws/v6/names"
+)
+
+// @SDKDataSource("aws_api_gateway_api_key", name="API Key")
+// @Tags
+// @Testing(tagsIdentifierAttribute="arn")
+func dataSourceAPIKey() *schema.Resource {
+	return &schema.Resource{
+		ReadWithoutTimeout: dataSourceAPIKeyRead,
+
+		Schema: map[string]*schema.Schema{
+			names.AttrARN: {
+				Type:     schema.TypeString,
+				Computed: true,
+			},
+			names.AttrCreatedDate: {
+				Type:     schema.TypeString,
+				Computed: true,
+			},
+			"customer_id": {
+				Type:     schema.TypeString,
+				Computed: true,
+			},
+			names.AttrDescription: {
+				Type:     schema.TypeString,
+				Computed: true,
+			},
+			names.AttrEnabled: {
+				Type:     schema.TypeBool,
+				Computed: true,
+			},
+			names.AttrID: {
+				Type:     schema.TypeString,
+				Required: true,
+			},
+			names.AttrLastUpdatedDate: {
+				Type:     schema.TypeString,
+				Computed: true,
+			},
+			names.AttrName: {
+				Type:     schema.TypeString,
+				Computed: true,
+			},
+			names.AttrTags: tftags.TagsSchemaComputed(),
+			names.AttrValue: {
+				Type:      schema.TypeString,
+				Computed:  true,
+				Sensitive: true,
+			},
+		},
+	}
+}
+
+func dataSourceAPIKeyRead(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
+	var diags diag.Diagnostics
+	c := meta.(*conns.AWSClient)
+	conn := c.APIGatewayClient(ctx)
+
+	id := d.Get(names.AttrID).(string)
+	apiKey, err := findAPIKeyByID(ctx, conn, id)
+
+	if err != nil {
+		return sdkdiag.AppendErrorf(diags, "reading API Gateway API Key (%s): %s", id, err)
+	}
+
+	d.SetId(aws.ToString(apiKey.Id))
+	d.Set(names.AttrARN, apiKeyARN(ctx, c, d.Id()))
+	d.Set(names.AttrCreatedDate, aws.ToTime(apiKey.CreatedDate).Format(time.RFC3339))
+	d.Set("customer_id", apiKey.CustomerId)
+	d.Set(names.AttrDescription, apiKey.Description)
+	d.Set(names.AttrEnabled, apiKey.Enabled)
+	d.Set(names.AttrLastUpdatedDate, aws.ToTime(apiKey.LastUpdatedDate).Format(time.RFC3339))
+	d.Set(names.AttrName, apiKey.Name)
+	d.Set(names.AttrValue, apiKey.Value)
+
+	setTagsOut(ctx, apiKey.Tags)
+
+	return diags
+}

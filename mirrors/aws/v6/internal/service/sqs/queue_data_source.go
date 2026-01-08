@@ -1,0 +1,95 @@
+// Copyright IBM Corp. 2014, 2026
+// SPDX-License-Identifier: MPL-2.0
+
+package sqs
+
+import (
+	"context"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
+	"github.com/hashicorp/aws-sdk-go-base/v2/tfawserr"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	sdkretry "github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/blampe/patches/mirrors/aws/v6/internal/conns"
+	"github.com/blampe/patches/mirrors/aws/v6/internal/errs/sdkdiag"
+	tftags "github.com/blampe/patches/mirrors/aws/v6/internal/tags"
+	"github.com/blampe/patches/mirrors/aws/v6/internal/tfresource"
+	"github.com/blampe/patches/mirrors/aws/v6/names"
+)
+
+// @SDKDataSource("aws_sqs_queue", name="Queue")
+// @Tags(identifierAttribute="url")
+func dataSourceQueue() *schema.Resource {
+	return &schema.Resource{
+		ReadWithoutTimeout: dataSourceQueueRead,
+
+		Schema: map[string]*schema.Schema{
+			names.AttrARN: {
+				Type:     schema.TypeString,
+				Computed: true,
+			},
+			names.AttrName: {
+				Type:     schema.TypeString,
+				Required: true,
+			},
+			names.AttrTags: tftags.TagsSchemaComputed(),
+			names.AttrURL: {
+				Type:     schema.TypeString,
+				Computed: true,
+			},
+		},
+	}
+}
+
+func dataSourceQueueRead(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
+	var diags diag.Diagnostics
+	conn := meta.(*conns.AWSClient).SQSClient(ctx)
+
+	name := d.Get(names.AttrName).(string)
+	urlOutput, err := findQueueURLByName(ctx, conn, name)
+
+	if err != nil {
+		return sdkdiag.AppendErrorf(diags, "reading SQS Queue (%s) URL: %s", name, err)
+	}
+
+	queueURL := aws.ToString(urlOutput)
+	attributesOutput, err := findQueueAttributeByTwoPartKey(ctx, conn, queueURL, types.QueueAttributeNameQueueArn)
+
+	if err != nil {
+		return sdkdiag.AppendErrorf(diags, "reading SQS Queue (%s) ARN attribute: %s", queueURL, err)
+	}
+
+	d.SetId(queueURL)
+	d.Set(names.AttrARN, attributesOutput)
+	d.Set(names.AttrURL, queueURL)
+
+	return diags
+}
+
+func findQueueURLByName(ctx context.Context, conn *sqs.Client, name string) (*string, error) {
+	input := &sqs.GetQueueUrlInput{
+		QueueName: aws.String(name),
+	}
+
+	output, err := conn.GetQueueUrl(ctx, input)
+
+	if tfawserr.ErrCodeEquals(err, errCodeQueueDoesNotExist) {
+		return nil, &sdkretry.NotFoundError{
+			LastError:   err,
+			LastRequest: input,
+		}
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	if output == nil || output.QueueUrl == nil {
+		return nil, tfresource.NewEmptyResultError(input)
+	}
+
+	return output.QueueUrl, nil
+}

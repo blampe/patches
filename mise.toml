@@ -1,0 +1,6 @@
+[tools]
+java = 'temurin-21'
+"github:google/copybara" = { version = "v20260112", asset_pattern = "copybara_deploy.jar", bin = "copybara" }
+
+[shell_alias]
+copybara = "java -jar $(mise which copybara) \"$@\""

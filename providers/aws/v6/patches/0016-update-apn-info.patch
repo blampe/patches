@@ -9,10 +9,10 @@ index d36f238243b..fdd8aa969f3 100644
 --- a/internal/conns/config.go
 +++ b/internal/conns/config.go
 @@ -23,7 +23,6 @@ import (
- 	tftags "github.com/hashicorp/terraform-provider-aws/internal/tags"
- 	"github.com/hashicorp/terraform-provider-aws/internal/tags/tagpolicy"
- 	"github.com/hashicorp/terraform-provider-aws/names"
--	"github.com/hashicorp/terraform-provider-aws/version"
+ 	tftags "github.com/blampe/patches/mirrors/aws/v6/internal/tags"
+ 	"github.com/blampe/patches/mirrors/aws/v6/internal/tags/tagpolicy"
+ 	"github.com/blampe/patches/mirrors/aws/v6/names"
+-	"github.com/blampe/patches/mirrors/aws/v6/version"
  )
  
  type Config struct {

@@ -34,14 +34,14 @@ index bff451461b5..067353077b4 100644
  	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 -	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/structure"
  	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
- 	"github.com/hashicorp/terraform-provider-aws/internal/conns"
- 	"github.com/hashicorp/terraform-provider-aws/internal/enum"
+ 	"github.com/blampe/patches/mirrors/aws/v6/internal/conns"
+ 	"github.com/blampe/patches/mirrors/aws/v6/internal/enum"
 @@ -28,7 +29,6 @@ import (
- 	tfsmithy "github.com/hashicorp/terraform-provider-aws/internal/smithy"
- 	tftags "github.com/hashicorp/terraform-provider-aws/internal/tags"
- 	"github.com/hashicorp/terraform-provider-aws/internal/tfresource"
--	"github.com/hashicorp/terraform-provider-aws/internal/verify"
- 	"github.com/hashicorp/terraform-provider-aws/names"
+ 	tfsmithy "github.com/blampe/patches/mirrors/aws/v6/internal/smithy"
+ 	tftags "github.com/blampe/patches/mirrors/aws/v6/internal/tags"
+ 	"github.com/blampe/patches/mirrors/aws/v6/internal/tfresource"
+-	"github.com/blampe/patches/mirrors/aws/v6/internal/verify"
+ 	"github.com/blampe/patches/mirrors/aws/v6/names"
  )
  
 @@ -76,12 +76,9 @@ func resourceLandingZone() *schema.Resource {

@@ -33,7 +33,7 @@ def mirror_provider(name, upstream_url, major, destination_url = "https://github
             core.replace(
                 before = upstream_module,
                 after = "github.com/blampe/patches/mirrors/%s/v%s" % (name, major),
-                paths = glob(["mirrors/%s/v%s/**/*.go" % (name, major)]),
+                paths = glob(["mirrors/%s/v%s/**/*.go" % (name, major), "mirrors/%s/v%s/*.go" % (name, major)]),
             ),
 
             # Apply provider+major patches (from the mirrors directory since files were moved)

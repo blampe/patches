@@ -18,14 +18,14 @@ index 00000000000..79867519db5
 +	retry_sdkv2 "github.com/aws/aws-sdk-go-v2/aws/retry"
 +	"github.com/aws/aws-sdk-go-v2/service/lambda"
 +	tfawserr_sdkv2 "github.com/hashicorp/aws-sdk-go-base/v2/tfawserr"
-+	"github.com/hashicorp/terraform-provider-aws/internal/conns"
++	"github.com/blampe/patches/mirrors/aws/v6/internal/conns"
 +)
 +
 +// Customize lambda retries.
 +//
 +// References:
 +//
-+// https://github.com/hashicorp/terraform-provider-aws/blob/main/docs/retries-and-waiters.md
++// https://github.com/blampe/patches/mirrors/aws/v6/blob/main/docs/retries-and-waiters.md
 +// https://github.com/pulumi/pulumi-aws/issues/3196
 +func (p *servicePackage) pulumiCustomizeLambdaRetries(cfg aws.Config) func(*lambda.Options) {
 +	retry := retry_sdkv2.IsErrorRetryableFunc(func(err error) aws_sdkv2.Ternary {

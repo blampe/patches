@@ -51,6 +51,9 @@ if [[ "$ARG2" =~ ^v([0-9]+)\. ]]; then
   TEMP_BRANCH="mirror-${PROVIDER}-v${MAJOR}"
   FINAL_BRANCH="mirror-${PROVIDER}-v${MAJOR}-${TAG}"
 
+  echo "Cleaning up temp branch $TEMP_BRANCH if it exists"
+  git push origin --delete "$TEMP_BRANCH" 2>/dev/null || echo "Temp branch doesn't exist, continuing..."
+
   echo "Running copybara workflow: $WORKFLOW with TAG=$TAG"
   java -jar $(mise which copybara) copy.bara.sky "$WORKFLOW" "$TAG" $INIT_FLAG
 
@@ -125,6 +128,9 @@ elif [[ "$ARG2" =~ ^[0-9]+$ ]]; then
 
   TEMP_BRANCH="mirror-${PROVIDER}-v${MAJOR}"
   FINAL_BRANCH="mirror-${PROVIDER}-v${MAJOR}-${TAG}"
+
+  echo "Cleaning up temp branch $TEMP_BRANCH if it exists"
+  git push origin --delete "$TEMP_BRANCH" 2>/dev/null || echo "Temp branch doesn't exist, continuing..."
 
   echo "Running copybara workflow: $WORKFLOW with TAG=$TAG"
   java -jar $(mise which copybara) copy.bara.sky "$WORKFLOW" "$TAG" $INIT_FLAG

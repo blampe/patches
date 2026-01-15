@@ -10,7 +10,7 @@ def mirror_provider(name, upstream_url, major, destination_url = "https://github
         ),
         destination = git.destination(
             url = destination_url,
-            push = "mirror-%s-v%s-${TAG}" % (name, major),
+            push = "mirror-%s-v%s" % (name, major),
             fetch = "main",
         ),
         mode = "SQUASH",

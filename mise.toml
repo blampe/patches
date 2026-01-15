@@ -48,12 +48,29 @@ if [[ "$ARG2" =~ ^v([0-9]+)\. ]]; then
     echo "Found existing migrations for ${PROVIDER} v${MAJOR}"
   fi
 
+  TEMP_BRANCH="mirror-${PROVIDER}-v${MAJOR}"
+  FINAL_BRANCH="mirror-${PROVIDER}-v${MAJOR}-${TAG}"
+
   echo "Running copybara workflow: $WORKFLOW with TAG=$TAG"
   java -jar $(mise which copybara) copy.bara.sky "$WORKFLOW" "$TAG" $INIT_FLAG
+
+  echo "Fetching and renaming branch to $FINAL_BRANCH"
+  git fetch origin "$TEMP_BRANCH"
+  git checkout -B "$FINAL_BRANCH" "origin/$TEMP_BRANCH"
 
   echo "Running go mod tidy in $MIRROR_DIR"
   cd "$MIRROR_DIR"
   go mod tidy
+  cd - >/dev/null
+
+  echo "Committing go mod tidy changes"
+  git add "$MIRROR_DIR/go.mod" "$MIRROR_DIR/go.sum"
+  if ! git diff --cached --quiet; then
+    git commit -m "Run go mod tidy for $TAG"
+  fi
+
+  echo "Pushing to $FINAL_BRANCH"
+  git push origin "$FINAL_BRANCH"
 
   echo "==> Mirror complete!"
 
@@ -106,13 +123,29 @@ elif [[ "$ARG2" =~ ^[0-9]+$ ]]; then
     echo "Found existing migrations for ${PROVIDER} v${MAJOR}"
   fi
 
+  TEMP_BRANCH="mirror-${PROVIDER}-v${MAJOR}"
+  FINAL_BRANCH="mirror-${PROVIDER}-v${MAJOR}-${TAG}"
+
   echo "Running copybara workflow: $WORKFLOW with TAG=$TAG"
   java -jar $(mise which copybara) copy.bara.sky "$WORKFLOW" "$TAG" $INIT_FLAG
+
+  echo "Fetching and renaming branch to $FINAL_BRANCH"
+  git fetch origin "$TEMP_BRANCH"
+  git checkout -B "$FINAL_BRANCH" "origin/$TEMP_BRANCH"
 
   echo "Running go mod tidy in $MIRROR_DIR"
   cd "$MIRROR_DIR"
   go mod tidy
   cd - >/dev/null
+
+  echo "Committing go mod tidy changes"
+  git add "$MIRROR_DIR/go.mod" "$MIRROR_DIR/go.sum"
+  if ! git diff --cached --quiet; then
+    git commit -m "Run go mod tidy for $TAG"
+  fi
+
+  echo "Pushing to $FINAL_BRANCH"
+  git push origin "$FINAL_BRANCH"
 
   # Create PR
   echo "Creating pull request..."

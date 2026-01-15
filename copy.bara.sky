@@ -7,7 +7,6 @@ def mirror_provider(name, upstream_url, major, destination_url = "https://github
         name = "mirror_%s_v%s" % (name, major),
         origin = git.origin(
             url = upstream_url,
-            ref = "refs/tags/${TAG}",
         ),
         destination = git.destination(
             url = destination_url,
@@ -32,7 +31,7 @@ def mirror_provider(name, upstream_url, major, destination_url = "https://github
 
             # Apply provider+major patches (from the mirrors directory since files were moved)
             patch.apply(
-                patches = glob(["providers/%s/v%s/patches/*.patch" % (name, major)]),
+                series = "providers/%s/v%s/patches/series" % (name, major),
                 strip = 1,
                 directory = "mirrors/%s/v%s" % (name, major),
             ),

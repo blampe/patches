@@ -39,8 +39,17 @@ if [[ "$ARG2" =~ ^v([0-9]+)\. ]]; then
   WORKFLOW="mirror_${PROVIDER}_v${MAJOR}"
   MIRROR_DIR="mirrors/${PROVIDER}/v${MAJOR}"
 
+  # Check if this is the first migration for this provider/major version
+  INIT_FLAG=""
+  if ! git tag -l "${PROVIDER}/v${MAJOR}/*" | grep -q .; then
+    echo "First migration for ${PROVIDER} v${MAJOR}, adding --init-history flag"
+    INIT_FLAG="--init-history"
+  else
+    echo "Found existing migrations for ${PROVIDER} v${MAJOR}"
+  fi
+
   echo "Running copybara workflow: $WORKFLOW with TAG=$TAG"
-  TAG="$TAG" java -jar $(mise which copybara) copy.bara.sky "$WORKFLOW"
+  java -jar $(mise which copybara) copy.bara.sky "$WORKFLOW" "$TAG" $INIT_FLAG
 
   echo "Running go mod tidy in $MIRROR_DIR"
   cd "$MIRROR_DIR"
@@ -88,8 +97,17 @@ elif [[ "$ARG2" =~ ^[0-9]+$ ]]; then
   WORKFLOW="mirror_${PROVIDER}_v${MAJOR}"
   MIRROR_DIR="mirrors/${PROVIDER}/v${MAJOR}"
 
+  # Check if this is the first migration for this provider/major version
+  INIT_FLAG=""
+  if ! git tag -l "${PROVIDER}/v${MAJOR}/*" | grep -q .; then
+    echo "First migration for ${PROVIDER} v${MAJOR}, adding --init-history flag"
+    INIT_FLAG="--init-history"
+  else
+    echo "Found existing migrations for ${PROVIDER} v${MAJOR}"
+  fi
+
   echo "Running copybara workflow: $WORKFLOW with TAG=$TAG"
-  TAG="$TAG" java -jar $(mise which copybara) copy.bara.sky "$WORKFLOW"
+  java -jar $(mise which copybara) copy.bara.sky "$WORKFLOW" "$TAG" $INIT_FLAG
 
   echo "Running go mod tidy in $MIRROR_DIR"
   cd "$MIRROR_DIR"

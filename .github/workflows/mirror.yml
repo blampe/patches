@@ -4,6 +4,15 @@ on:
   schedule:
     - cron: "0 3 * * *"
   workflow_dispatch:
+    inputs:
+      provider:
+        description: 'Provider name (e.g., aws) - leave empty to run all'
+        required: false
+        type: string
+      major:
+        description: 'Major version (e.g., 5 or 6) - leave empty to run all'
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -27,48 +36,22 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+        if: |
+          github.event_name == 'schedule' ||
+          (inputs.provider == '' && inputs.major == '') ||
+          (inputs.provider == matrix.provider.name && inputs.major == matrix.provider.major)
         with:
           fetch-depth: 0
 
-      - uses: jdx/mise-action
+      - uses: jdx/mise-action@v2
+        if: |
+          github.event_name == 'schedule' ||
+          (inputs.provider == '' && inputs.major == '') ||
+          (inputs.provider == matrix.provider.name && inputs.major == matrix.provider.major)
 
-      - name: Find latest upstream tag
-        id: tag
-        run: |
-          git ls-remote --tags ${{ matrix.provider.repo }} \
-            | awk -F/ '{print $NF}' \
-            | grep "^v${{ matrix.provider.major }}\." \
-            | grep -v '\^{}' \
-            | sort -V \
-            | tail -n1 > tag
-
-          echo "tag=$(cat tag)" >> $GITHUB_OUTPUT
-
-      - name: Check if already mirrored
-        id: check
-        run: |
-          TAG="refs/tags/${{ matrix.provider.name }}/v${{ matrix.provider.major }}/${{ steps.tag.outputs.tag }}"
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Run Copybara
-        if: steps.check.outputs.exists == 'false'
-        run: |
-          copybara \
-            copy.bara.sky \
-            ${{ matrix.provider.workflow }} \
-            --force \
-            --set TAG=${{ steps.tag.outputs.tag }}
-
-      - name: Open PR
-        if: steps.check.outputs.exists == 'false'
-        uses: peter-evans/create-pull-request@v6
-        with:
-          branch: mirror/${{ matrix.provider.name }}/v${{ matrix.provider.major }}/${{ steps.tag.outputs.tag }}
-          title: "Mirror ${{ matrix.provider.name }} v${{ matrix.provider.major }} ${{ steps.tag.outputs.tag }}"
-          base: main
-          auto-merge: true
-          merge-method: squash
+      - name: Mirror provider
+        if: |
+          github.event_name == 'schedule' ||
+          (inputs.provider == '' && inputs.major == '') ||
+          (inputs.provider == matrix.provider.name && inputs.major == matrix.provider.major)
+        run: mise run mirror ${{ matrix.provider.name }} ${{ matrix.provider.major }} ${{ matrix.provider.repo }}

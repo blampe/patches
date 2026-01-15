@@ -1,4 +1,8 @@
-def mirror_provider(name, upstream_url, major):
+def mirror_provider(name, upstream_url, major, destination_url = "https://github.com/blampe/patches.git"):
+    # Derive the Go module path from the upstream URL
+    # e.g., "https://github.com/hashicorp/terraform-provider-aws.git" -> "github.com/hashicorp/terraform-provider-aws"
+    upstream_module = upstream_url.replace("https://", "").replace(".git", "")
+
     return core.workflow(
         name = "mirror_%s_v%s" % (name, major),
         origin = git.origin(
@@ -6,9 +10,9 @@ def mirror_provider(name, upstream_url, major):
             ref = "refs/tags/${TAG}",
         ),
         destination = git.destination(
-            url = "https://github.com/blampe/patches.git",
-            ref = "refs/heads/main",
-            commit_msg = "Mirror %s v%s ${TAG}" % (name, major),
+            url = destination_url,
+            push = "mirror-%s-v%s-${TAG}" % (name, major),
+            fetch = "main",
         ),
         mode = "SQUASH",
         authoring = authoring.pass_thru("Copybara <copybara@example.com>"),
@@ -19,18 +23,25 @@ def mirror_provider(name, upstream_url, major):
                 after = "mirrors/%s/v%s" % (name, major),
             ),
 
-            # Apply provider+major patches
-            patch.apply(
-                patch_dir = "providers/%s/v%s/patches" % (name, major),
-                strip = 1,
+            # Update go.mod module path
+            core.replace(
+                before = "module %s" % upstream_module,
+                after = "module github.com/blampe/patches/mirrors/%s/v%s" % (name, major),
+                paths = glob(["mirrors/%s/v%s/go.mod" % (name, major)]),
             ),
 
-            core.run(
-                working_dir = "mirrors/%s/%s" % (name, major),
-                cmd = ["go", "mod", "tidy"],
+            # Apply provider+major patches (from the mirrors directory since files were moved)
+            patch.apply(
+                patches = glob(["providers/%s/v%s/patches/*.patch" % (name, major)]),
+                strip = 1,
+                directory = "mirrors/%s/v%s" % (name, major),
             ),
         ],
     )
+
+# For local testing, override destination_url:
+#   destination_url = "file:///Users/bryce/src/patches"
+# For production (CI), use the default GitHub URL
 
 mirror_provider(
     name = "aws",

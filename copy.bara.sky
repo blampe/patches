@@ -1,0 +1,45 @@
+def mirror_provider(name, upstream_url, major):
+    return core.workflow(
+        name = "mirror_%s_v%s" % (name, major),
+        origin = git.origin(
+            url = upstream_url,
+            ref = "refs/tags/${TAG}",
+        ),
+        destination = git.destination(
+            url = "https://github.com/blampe/patches.git",
+            ref = "refs/heads/main",
+            commit_msg = "Mirror %s v%s ${TAG}" % (name, major),
+        ),
+        mode = "SQUASH",
+        authoring = authoring.pass_thru("Copybara <copybara@example.com>"),
+        transformations = [
+            # Move upstream into its namespace
+            core.move(
+                before = "",
+                after = "mirrors/%s/v%s" % (name, major),
+            ),
+
+            # Apply provider+major patches
+            patch.apply(
+                patch_dir = "providers/%s/v%s/patches" % (name, major),
+                strip = 1,
+            ),
+
+            core.run(
+                working_dir = "mirrors/%s/%s" % (name, major),
+                cmd = ["go", "mod", "tidy"],
+            ),
+        ],
+    )
+
+mirror_provider(
+    name = "aws",
+    major = "5",
+    upstream_url = "https://github.com/hashicorp/terraform-provider-aws.git",
+)
+
+mirror_provider(
+    name = "aws",
+    major = "6",
+    upstream_url = "https://github.com/hashicorp/terraform-provider-aws.git",
+)

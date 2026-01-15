@@ -1,0 +1,31 @@
+name: Tag Provider Release
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    if: github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.title, 'Mirror ')
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Create tag
+        run: |
+          TITLE="${{ github.event.pull_request.title }}"
+          PROVIDER=$(echo "$TITLE" | awk '{print $2}')
+          MAJOR=$(echo "$TITLE" | sed -E 's/.*v([0-9]+).*/\1/')
+          VERSION=$(echo "$TITLE" | awk '{print $NF}')
+
+          TAG="$PROVIDER/v$MAJOR/$VERSION"
+
+          git tag "$TAG"
+          git push origin "$TAG"

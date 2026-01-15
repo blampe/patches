@@ -1,0 +1,74 @@
+name: Mirror Providers
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        provider:
+          - name: aws
+            major: "6"
+            repo: https://github.com/hashicorp/terraform-provider-aws.git
+            workflow: mirror_aws_v6
+          - name: aws
+            major: "5"
+            repo: https://github.com/hashicorp/terraform-provider-aws.git
+            workflow: mirror_aws_v5
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: jdx/mise-action
+
+      - name: Find latest upstream tag
+        id: tag
+        run: |
+          git ls-remote --tags ${{ matrix.provider.repo }} \
+            | awk -F/ '{print $NF}' \
+            | grep "^v${{ matrix.provider.major }}\." \
+            | grep -v '\^{}' \
+            | sort -V \
+            | tail -n1 > tag
+
+          echo "tag=$(cat tag)" >> $GITHUB_OUTPUT
+
+      - name: Check if already mirrored
+        id: check
+        run: |
+          TAG="refs/tags/${{ matrix.provider.name }}/v${{ matrix.provider.major }}/${{ steps.tag.outputs.tag }}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run Copybara
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          copybara \
+            copy.bara.sky \
+            ${{ matrix.provider.workflow }} \
+            --force \
+            --set TAG=${{ steps.tag.outputs.tag }}
+
+      - name: Open PR
+        if: steps.check.outputs.exists == 'false'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: mirror/${{ matrix.provider.name }}/v${{ matrix.provider.major }}/${{ steps.tag.outputs.tag }}
+          title: "Mirror ${{ matrix.provider.name }} v${{ matrix.provider.major }} ${{ steps.tag.outputs.tag }}"
+          base: main
+          auto-merge: true
+          merge-method: squash

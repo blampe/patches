@@ -1,6 +1,11 @@
 [tools]
 java = 'temurin-21'
 "github:google/copybara" = { version = "v20260112", asset_pattern = "copybara_deploy.jar", bin = "copybara" }
+go = "1.25.5"
 
 [shell_alias]
-copybara = "java -jar $(mise which copybara) \"$@\""
+copybara = "java -jar $(mise which copybara)"
+
+[settings]
+http_retries = 3
+pin = true

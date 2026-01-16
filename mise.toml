@@ -73,7 +73,7 @@ if [[ "$ARG2" =~ ^v([0-9]+)\. ]]; then
   fi
 
   echo "Pushing to $FINAL_BRANCH"
-  git push origin "$FINAL_BRANCH"
+  git push --force origin "$FINAL_BRANCH"
 
   echo "==> Mirror complete!"
 
@@ -151,7 +151,7 @@ elif [[ "$ARG2" =~ ^[0-9]+$ ]]; then
   fi
 
   echo "Pushing to $FINAL_BRANCH"
-  git push origin "$FINAL_BRANCH"
+  git push --force origin "$FINAL_BRANCH"
 
   # Create PR
   echo "Creating pull request..."

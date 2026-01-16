@@ -1,0 +1,57 @@
+name: Mirror Providers
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: 'Provider name (e.g., aws) - leave empty to run all'
+        required: false
+        type: string
+      major:
+        description: 'Major version (e.g., 5 or 6) - leave empty to run all'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        provider:
+          - name: aws
+            major: "6"
+            repo: https://github.com/hashicorp/terraform-provider-aws.git
+            workflow: mirror_aws_v6
+          - name: aws
+            major: "5"
+            repo: https://github.com/hashicorp/terraform-provider-aws.git
+            workflow: mirror_aws_v5
+
+    steps:
+      - uses: actions/checkout@v6
+        if: |
+          github.event_name == 'schedule' ||
+          (inputs.provider == '' && inputs.major == '') ||
+          (inputs.provider == matrix.provider.name && inputs.major == matrix.provider.major)
+        with:
+          fetch-depth: 0
+
+      - uses: jdx/mise-action@v2
+        if: |
+          github.event_name == 'schedule' ||
+          (inputs.provider == '' && inputs.major == '') ||
+          (inputs.provider == matrix.provider.name && inputs.major == matrix.provider.major)
+
+      - name: Mirror provider
+        if: |
+          github.event_name == 'schedule' ||
+          (inputs.provider == '' && inputs.major == '') ||
+          (inputs.provider == matrix.provider.name && inputs.major == matrix.provider.major)
+        run: mise run mirror ${{ matrix.provider.name }} ${{ matrix.provider.major }} ${{ matrix.provider.repo }}

@@ -174,7 +174,7 @@ This PR includes:
 
   # Enable auto-merge
   echo "Enabling auto-merge..."
-  gh pr merge --auto --squash
+  gh pr merge "$FINAL_BRANCH" --auto --squash
 
   echo "==> Mirror and PR creation complete!"
 

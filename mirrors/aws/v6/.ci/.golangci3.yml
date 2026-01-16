@@ -1,0 +1,86 @@
+# Copyright IBM Corp. 2014, 2026
+# "SPDX-License-Identifier: MPL-2.0"
+
+version: "2"
+linters:
+  default: none
+  enable:
+    - goconst
+    - gocritic
+    - govet
+    - importas
+    - ineffassign
+    - makezero
+    - misspell
+    - mnd
+  exclusions:
+    rules:
+      - path: '(.+)_test\.go'
+        linters:
+          - goconst
+  settings:
+    goconst:
+      min-occurrences: 6
+    gocritic:
+      enabled-tags:
+        - diagnostic
+      disabled-tags:
+        - experimental
+        - opinionated
+        - performance
+        - style
+    importas:
+      no-unaliased: true
+      alias:
+        - pkg: github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry
+          alias: sdkretry
+        - pkg: github.com/hashicorp/terraform-provider-aws/internal/types
+          alias: inttypes
+        - pkg: github.com/hashicorp/terraform-provider-aws/internal/retry
+          alias: ""
+    mnd:
+      checks:
+        - argument
+      ignored-functions:
+        # AWS Go SDK
+        - aws.Int32
+        - aws.Int64
+        - request.ConstantWaiterDelay
+        - request.WithWaiterMaxAttempts
+        # AWS Provider
+        - nullable.*
+        - tfresource.Retry*
+        - tfresource.With*
+        # Terraform Plugin SDK
+        - retry.RetryContext
+        - schema.DefaultTimeout
+        - validation.*
+        - floatBetweenSchema
+        - intBetweenSchema
+        - stringLenBetweenSchema
+        # Terraform Plugin Framework
+        - int32validator.*
+        - int64validator.*
+        - listvalidator.*
+        - mapvalidator.*
+        - setvalidator.*
+        - stringvalidator.*
+        - SetDefaultCreateTimeout
+        - SetDefaultReadTimeout
+        - SetDefaultUpdateTimeout
+        - SetDefaultDeleteTimeout
+        # Go
+        - make
+        - strconv.FormatFloat
+        - strconv.FormatInt
+        - strconv.ParseFloat
+        - strconv.ParseInt
+        - strings.SplitN
+issues:
+  max-issues-per-linter: 10
+  max-same-issues: 3
+formatters:
+  enable:
+    - gofmt
+run:
+  timeout: 75m

@@ -1,0 +1,84 @@
+// Copyright IBM Corp. 2014, 2026
+// SPDX-License-Identifier: MPL-2.0
+
+package route53recoverycontrolconfig
+
+import (
+	"context"
+
+	r53rcc "github.com/aws/aws-sdk-go-v2/service/route53recoverycontrolconfig"
+	sdkretry "github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
+	"github.com/blampe/patches/mirrors/aws/v6/internal/retry"
+)
+
+func statusCluster(ctx context.Context, conn *r53rcc.Client, clusterArn string) sdkretry.StateRefreshFunc {
+	return func() (any, string, error) {
+		output, err := findClusterByARN(ctx, conn, clusterArn)
+
+		if retry.NotFound(err) {
+			return nil, "", nil
+		}
+
+		if err != nil {
+			return output, "", err
+		}
+
+		return output, string(output.Status), nil
+	}
+}
+
+func statusRoutingControl(ctx context.Context, conn *r53rcc.Client, routingControlArn string) sdkretry.StateRefreshFunc {
+	return func() (any, string, error) {
+		output, err := findRoutingControlByARN(ctx, conn, routingControlArn)
+
+		if retry.NotFound(err) {
+			return nil, "", nil
+		}
+
+		if err != nil {
+			return output, "", err
+		}
+
+		return output, string(output.Status), nil
+	}
+}
+
+func statusControlPanel(ctx context.Context, conn *r53rcc.Client, controlPanelArn string) sdkretry.StateRefreshFunc {
+	return func() (any, string, error) {
+		output, err := findControlPanelByARN(ctx, conn, controlPanelArn)
+
+		if retry.NotFound(err) {
+			return nil, "", nil
+		}
+
+		if err != nil {
+			return output, "", err
+		}
+
+		return output, string(output.Status), nil
+	}
+}
+
+func statusSafetyRule(ctx context.Context, conn *r53rcc.Client, safetyRuleArn string) sdkretry.StateRefreshFunc {
+	return func() (any, string, error) {
+		output, err := findSafetyRuleByARN(ctx, conn, safetyRuleArn)
+
+		if retry.NotFound(err) {
+			return nil, "", nil
+		}
+
+		if err != nil {
+			return output, "", err
+		}
+
+		if output.AssertionRule != nil {
+			return output, string(output.AssertionRule.Status), nil
+		}
+
+		if output.GatingRule != nil {
+			return output, string(output.GatingRule.Status), nil
+		}
+
+		return output, "", nil
+	}
+}

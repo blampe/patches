@@ -1,0 +1,126 @@
+// Copyright IBM Corp. 2014, 2026
+// SPDX-License-Identifier: MPL-2.0
+
+package redshift_test
+
+import (
+	"context"
+	"fmt"
+	"testing"
+
+	"github.com/YakDriver/regexache"
+	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
+	"github.com/blampe/patches/mirrors/aws/v6/internal/acctest"
+	"github.com/blampe/patches/mirrors/aws/v6/internal/conns"
+	"github.com/blampe/patches/mirrors/aws/v6/internal/retry"
+	tfredshift "github.com/blampe/patches/mirrors/aws/v6/internal/service/redshift"
+	"github.com/blampe/patches/mirrors/aws/v6/names"
+)
+
+func TestAccRedshiftHSMClientCertificate_basic(t *testing.T) {
+	ctx := acctest.Context(t)
+	resourceName := "aws_redshift_hsm_client_certificate.test"
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(ctx, t) },
+		ErrorCheck:               acctest.ErrorCheck(t, names.RedshiftServiceID),
+		ProtoV5ProviderFactories: acctest.ProtoV5ProviderFactories,
+		CheckDestroy:             testAccCheckHSMClientCertificateDestroy(ctx),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccHSMClientCertificateConfig_basic(rName),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckHSMClientCertificateExists(ctx, resourceName),
+					acctest.MatchResourceAttrRegionalARN(ctx, resourceName, names.AttrARN, "redshift", regexache.MustCompile(`hsmclientcertificate:.+`)),
+					resource.TestCheckResourceAttr(resourceName, "hsm_client_certificate_identifier", rName),
+					resource.TestCheckResourceAttrSet(resourceName, "hsm_client_certificate_public_key"),
+					resource.TestCheckResourceAttr(resourceName, acctest.CtTagsPercent, "0"),
+				),
+			},
+			{
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
+func TestAccRedshiftHSMClientCertificate_disappears(t *testing.T) {
+	ctx := acctest.Context(t)
+	resourceName := "aws_redshift_hsm_client_certificate.test"
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(ctx, t) },
+		ErrorCheck:               acctest.ErrorCheck(t, names.RedshiftServiceID),
+		ProtoV5ProviderFactories: acctest.ProtoV5ProviderFactories,
+		CheckDestroy:             testAccCheckHSMClientCertificateDestroy(ctx),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccHSMClientCertificateConfig_basic(rName),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckHSMClientCertificateExists(ctx, resourceName),
+					acctest.CheckSDKResourceDisappears(ctx, t, tfredshift.ResourceHSMClientCertificate(), resourceName),
+				),
+				ExpectNonEmptyPlan: true,
+			},
+		},
+	})
+}
+
+func testAccCheckHSMClientCertificateDestroy(ctx context.Context) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		conn := acctest.Provider.Meta().(*conns.AWSClient).RedshiftClient(ctx)
+
+		for _, rs := range s.RootModule().Resources {
+			if rs.Type != "aws_redshift_hsm_client_certificate" {
+				continue
+			}
+
+			_, err := tfredshift.FindHSMClientCertificateByID(ctx, conn, rs.Primary.ID)
+
+			if retry.NotFound(err) {
+				continue
+			}
+
+			if err != nil {
+				return err
+			}
+
+			return fmt.Errorf("Redshift Hsm Client Certificate %s still exists", rs.Primary.ID)
+		}
+
+		return nil
+	}
+}
+
+func testAccCheckHSMClientCertificateExists(ctx context.Context, name string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[name]
+		if !ok {
+			return fmt.Errorf("not found: %s", name)
+		}
+
+		if rs.Primary.ID == "" {
+			return fmt.Errorf("Snapshot Copy Grant ID (HsmClientCertificateName) is not set")
+		}
+
+		conn := acctest.Provider.Meta().(*conns.AWSClient).RedshiftClient(ctx)
+
+		_, err := tfredshift.FindHSMClientCertificateByID(ctx, conn, rs.Primary.ID)
+
+		return err
+	}
+}
+
+func testAccHSMClientCertificateConfig_basic(rName string) string {
+	return fmt.Sprintf(`
+resource "aws_redshift_hsm_client_certificate" "test" {
+  hsm_client_certificate_identifier = %[1]q
+}
+`, rName)
+}

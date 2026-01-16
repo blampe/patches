@@ -197,7 +197,7 @@ This PR includes:
 
   # Enable auto-merge
   echo "Enabling auto-merge..."
-  gh pr merge "$PR_URL" --auto --squash
+  gh pr merge "$PR_URL" --auto --merge
 
   echo "==> Mirror and PR creation complete!"
 

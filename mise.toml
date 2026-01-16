@@ -155,7 +155,6 @@ elif [[ "$ARG2" =~ ^[0-9]+$ ]]; then
 
   # Create PR
   echo "Creating pull request..."
-  BRANCH="mirror/${PROVIDER}/v${MAJOR}/${TAG}"
   TITLE="Mirror ${PROVIDER} v${MAJOR} ${TAG}"
   BODY="Automated mirror of ${PROVIDER} ${TAG} from upstream.
 
@@ -171,7 +170,7 @@ This PR includes:
     --title "$TITLE" \
     --body "$BODY" \
     --base main \
-    --head "$BRANCH"
+    --head "$FINAL_BRANCH"
 
   # Enable auto-merge
   echo "Enabling auto-merge..."

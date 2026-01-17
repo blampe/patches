@@ -1,0 +1,24 @@
+name: Validate Copybara Configuration
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'copy.bara.sky'
+      - 'providers/**/patches/**'
+      - '.github/workflows/validate.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup mise
+        uses: jdx/mise-action@v2
+
+      - name: Validate Copybara configuration
+        run: copybara validate copy.bara.sky
